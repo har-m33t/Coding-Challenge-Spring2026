@@ -384,7 +384,17 @@ class SharedBuffer(shared_memory.SharedMemory):
         Return the number of bytes written. If the full array does not fit, the
         contract used by the tests expects this method to return `0`.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.write_array")
+        nbytes = arr.nbytes
+        writer_mem_view = self.expose_writer_mem_view(nbytes)
+        mv1, mv2, actual_size, split = writer_mem_view
+
+
+        if actual_size < nbytes: 
+            return 0 
+
+        self.simple_write(writer_mem_view, arr)
+        self.inc_writer_pos(nbytes)
+        return nbytes
 
     def read_array(self, nbytes: int, dtype: np.dtype) -> np.ndarray:
         """
@@ -394,4 +404,13 @@ class SharedBuffer(shared_memory.SharedMemory):
         available. If there are not enough readable bytes, return an empty array
         with the requested dtype.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.read_array")
+        nbytes = arr.nbytes
+        reader_mem_view = self.expose_reader_mem_view(nbytes)
+        mv1, mv2, actual_size, split = reader_mem_view
+
+        if actual_size < nbytes:
+            return 0 
+
+        self.simple_read(reader_mem_view, arr)
+        self.inc_reader_pos(nbytes)
+        return nbytes

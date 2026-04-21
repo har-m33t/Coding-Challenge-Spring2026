@@ -198,7 +198,9 @@ class SharedBuffer(shared_memory.SharedMemory):
         Active readers apply backpressure. Inactive readers should not reduce
         writer capacity.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.set_reader_active")
+        if self.reader_pos_index is None:
+            raise RuntimeError("set_reader_active called on a writer-only instance")
+        self.header[self.reader_pos_index + 1] = np.uint64(1 if active else 0)
 
     def is_reader_active(self) -> bool:
         """

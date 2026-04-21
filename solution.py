@@ -120,6 +120,18 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This should not destroy the buffer for other attached processes.
         """
+        ring_buffer = getattr(self, "ring_buffer", None)
+        if ring_buffer is not None:
+            try:
+                ring_buffer.release()
+            except Exception:
+                pass
+            self.ring_buffer = None
+
+        header = getattr(self, "header", None)
+        if header is not None:
+            self.header = None
+
         try:
             super().close()
         except Exception:

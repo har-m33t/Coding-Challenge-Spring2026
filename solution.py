@@ -166,7 +166,10 @@ class SharedBuffer(shared_memory.SharedMemory):
         Pressure is based on how much of the bounded storage is currently in use
         relative to the slowest active reader.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.calculate_pressure")
+        max_amount_writable = self.compute_max_amount_writable(force_rescan=True)
+        used = self.ring_buffer_size - max_amount_writable
+        pressure = int((used / self.ring_buffer_size) * 100)
+        return pressure
 
     def int_to_pos(self, value: int) -> int:
         """

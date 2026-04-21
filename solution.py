@@ -227,7 +227,8 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This is how a writer publishes bytes after copying them into the buffer.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.inc_writer_pos")
+        new_writer_pos = int(self.write_pos + inc_amount)
+        self.update_write_pos(new_writer_pos)
 
     def inc_reader_pos(self, inc_amount: int) -> None:
         """
@@ -235,7 +236,8 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This is how a reader consumes bytes after reading them.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.inc_reader_pos")
+        new_reader_pos = int(self.reader_pos + inc_amount)
+        self.update_reader_pos(new_reader_pos)
 
     def get_write_pos(self) -> int:
         """

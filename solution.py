@@ -280,7 +280,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         Use this when a reader has fallen too far behind and old unread data is
         no longer retained.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.jump_to_writer")
+        self.update_reader_pos(self.get_write_pos())
 
     def expose_writer_mem_view(self, size: int) -> RingView:
         """

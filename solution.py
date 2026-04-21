@@ -245,7 +245,7 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         Readers can use this to resynchronize or compute how much data is available.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.get_write_pos")
+        return int(self.write_pos)
 
     def compute_max_amount_writable(self, force_rescan: bool = False) -> int:
         """

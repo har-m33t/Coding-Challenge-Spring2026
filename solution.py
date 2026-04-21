@@ -295,7 +295,22 @@ class SharedBuffer(shared_memory.SharedMemory):
         If less than `size` bytes are currently writable, clamp to the amount
         available rather than raising.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.expose_writer_mem_view")
+        max_writable = self.compute_max_amount_writable()
+        actual_size = min(size, max_writable)
+
+        write_offset = self.int_to_pos(self.write_pos)
+
+        if write_offset + actual_size <= self.ring_buffer_size:
+            mv1 = self.ring_buffer[write_offset : write_offset + actual_size]
+            mv2 = None
+            split = False
+        else: 
+            mv1 = self.ring_buffer[write_offset:]
+            mv2 = self.ring_buffer[0: actual_size - len(mv1)]
+            split = True 
+
+        return (mv1, mv2, actual_size, split)
+
 
     def expose_reader_mem_view(self, size: int) -> RingView:
         """
@@ -304,7 +319,27 @@ class SharedBuffer(shared_memory.SharedMemory):
         The shape matches `expose_writer_mem_view()`. If less than `size` bytes
         are currently readable, clamp to the amount available rather than raising.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.expose_reader_mem_view")
+        max_readable = self.get_write_pos() - self.reader_pos
+        
+        if max_readable > self.ring_buffer_size:
+            self.jump_to_writer()
+            max_readable = 0
+        
+        actual_size = min(size, max_readable)
+
+        read_offset = self.int_to_pos(self.reader_pos)
+
+        if read_offset + actual_size <= self.ring_buffer_size: 
+            mv1 = self.ring_buffer[read_offset: read_offset + actual_size]
+            mv2 = None 
+            split = False 
+
+        else: 
+            mv1 = self.ring_buffer[read_offset:]
+            mv2 = self.ring_buffer[0:actual_size - len(mv1)]
+            split = True 
+
+        return (mv1, mv2, actual_size, split)
 
     def simple_write(self, writer_mem_view: RingView, src: object) -> None:
         """

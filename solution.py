@@ -144,6 +144,8 @@ class SharedBuffer(shared_memory.SharedMemory):
         Reader instances are expected to mark themselves active while inside the
         context. Writer-only instances can simply return `self`.
         """
+        if self.reader != self._NO_READER:
+            self.set_reader_active(True)
         return self
 
     def __exit__(self, *_):
@@ -153,6 +155,8 @@ class SharedBuffer(shared_memory.SharedMemory):
         Reader instances are expected to mark themselves inactive on exit, then
         close local resources.
         """
+        if self.reader != self._NO_READER:
+            self.set_reader_active(False)
         self.close()
 
     def calculate_pressure(self) -> int:

@@ -55,7 +55,64 @@ class SharedBuffer(shared_memory.SharedMemory):
         - `cache_align` / `cache_size`: optional metadata-layout knobs; you may ignore
           them internally as long as validation and behavior remain correct
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.__init__")
+        if size <= 0:
+            raise ValueError(f"SharedBuffer '{name}': size must be > 0")
+        if num_readers < 1:
+            raise ValueError(f"SharedBuffer '{name}': num_readers must be >= 1")
+        if cache_align and (cache_size <= 0 or cache_size & (cache_size - 1)):
+            raise ValueError("cache_size must be a positive power of two")
+        if reader != self._NO_READER and not (0 <= reader < num_readers):
+            raise ValueError(f"reader index {reader} out of range for num_readers={num_readers}")
+
+        STATIC_FIELDS = 3
+        READER_FIELDS = 3
+        UINT64 = 8
+
+        raw_header_bytes = UINT64 * (STATIC_FIELDS + num_readers * READER_FIELDS)
+
+        if cache_align:
+            raw_header_bytes = (raw_header_bytes + cache_size - 1) & ~(cache_size - 1)
+
+        self.header_size = raw_header_bytes
+        self.ring_buffer_size = size
+        total_size = self.header_size + self.ring_buffer_size
+
+        super().__init__(name=name, create=create, size=total_size)
+
+        num_header_u64 = STATIC_FIELDS + num_readers * READER_FIELDS
+        self.header = np.ndarray(
+            (num_header_u64,),
+            dtype=np.uint64,
+            buffer=self.buf,
+            offset=0,
+        )
+
+        if create:
+            self.header[:] = 0
+            self.header[0] = np.uint64(self.ring_buffer_size)
+            self.header[2] = np.uint64(num_readers)
+
+        self.cache_align = cache_align
+        self.cache_size = cache_size
+        self.num_readers = num_readers
+        self.reader = reader
+
+        self.ring_buffer = memoryview(self.buf)[self.header_size : self.header_size + self.ring_buffer_size]
+
+        self._size_idx = 0
+        self._write_pos_idx = 1
+        self._num_readers_idx = 2
+
+        self._STATIC = STATIC_FIELDS
+        self._READER_FIELDS = READER_FIELDS
+
+        if self.reader == self._NO_READER:
+            self.reader_pos_index = None
+        else:
+            self.reader_pos_index = self._STATIC + self.reader * self._READER_FIELDS
+
+        self.write_pos = int(self.header[self._write_pos_idx])
+        self.reader_pos = 0 if self.reader_pos_index is not None else None
 
     def close(self) -> None:
         """

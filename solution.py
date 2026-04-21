@@ -254,7 +254,24 @@ class SharedBuffer(shared_memory.SharedMemory):
         This should take active readers into account. `force_rescan=True` is used
         by the tests to ensure externally updated reader positions are observed.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.compute_max_amount_writable")
+        pos = self.get_write_pos()
+
+        min_reader_pos = pos 
+
+        for i in range(self.num_readers):
+            slot =  3 + i * 3
+            reader_pos = self.header[slot]
+            reader_alive = self.header[slot + 1]
+
+            if reader_alive == 1:
+                min_reader_pos = min(self.reader_pos, min_reader_pos)
+
+        used = self.write_pos - min_reader_pos
+
+        max_writable = self.ring_buffer_size - used
+
+        return max_writable
+
 
     def jump_to_writer(self) -> None:
         """

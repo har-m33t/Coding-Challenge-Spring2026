@@ -218,7 +218,8 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         The write position is what makes newly written bytes visible to readers.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.update_write_pos")
+        self.header[self._write_pos_idx] = np.uint64(new_writer_pos) # explicit type cast
+        self.write_pos = new_writer_pos
 
     def inc_writer_pos(self, inc_amount: int) -> None:
         """

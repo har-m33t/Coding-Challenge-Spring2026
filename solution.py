@@ -186,7 +186,10 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This must fail clearly when called on a writer-only instance.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.update_reader_pos")
+        if self.reader_pos_index is None:
+            raise RuntimeError("update_reader_pos called on a writer-only instance")
+        self.header[self.reader_pos_index] = np.uint64(new_reader_pos)
+        self.reader_pos = new_reader_pos
 
     def set_reader_active(self, active: bool) -> None:
         """

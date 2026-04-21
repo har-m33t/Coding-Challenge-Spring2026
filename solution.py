@@ -178,7 +178,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         If your design does not use modulo arithmetic internally, you may still
         keep this helper as the mapping from logical positions to buffer offsets.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.int_to_pos")
+        return value % self.ring_buffer_size
 
     def update_reader_pos(self, new_reader_pos: int) -> None:
         """

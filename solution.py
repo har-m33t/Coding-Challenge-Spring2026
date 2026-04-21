@@ -208,8 +208,10 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This must fail clearly when called on a writer-only instance.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.is_reader_active")
-
+        if self.reader_pos_index is None: 
+            raise RuntimeError(f'writer only instance: no reader is currently active')
+        return self.header[self.reader_pos_index + 1] == 1
+    
     def update_write_pos(self, new_writer_pos: int) -> None:
         """
         Store the writer's absolute write position in shared state.

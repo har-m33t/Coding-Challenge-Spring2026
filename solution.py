@@ -74,8 +74,8 @@ class SharedBuffer(shared_memory.SharedMemory):
             raw_header_bytes = (raw_header_bytes + cache_size - 1) & ~(cache_size - 1)
 
         self.header_size = raw_header_bytes
-        self.ring_buffer_size = size
-        total_size = self.header_size + self.ring_buffer_size
+        self.buffer_size = size
+        total_size = self.header_size + self.buffer_size
 
         super().__init__(name=name, create=create, size=total_size)
 
@@ -89,7 +89,7 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         if create:
             self.header[:] = 0
-            self.header[0] = np.uint64(self.ring_buffer_size)
+            self.header[0] = np.uint64(self.buffer_size)
             self.header[2] = np.uint64(num_readers)
 
         self.cache_align = cache_align
@@ -97,7 +97,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         self.num_readers = num_readers
         self.reader = reader
 
-        self.ring_buffer = memoryview(self.buf)[self.header_size : self.header_size + self.ring_buffer_size]
+        self.buffer = memoryview(self.buf)[self.header_size : self.header_size + self.buffer_size]
 
         self._size_idx = 0
         self._write_pos_idx = 1
@@ -120,13 +120,13 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This should not destroy the buffer for other attached processes.
         """
-        ring_buffer = getattr(self, "ring_buffer", None)
+        ring_buffer = getattr(self, "buffer", None)
         if ring_buffer is not None:
             try:
                 ring_buffer.release()
             except Exception:
                 pass
-            self.ring_buffer = None
+            self.buffer = None
 
         header = getattr(self, "header", None)
         if header is not None:
@@ -167,8 +167,8 @@ class SharedBuffer(shared_memory.SharedMemory):
         relative to the slowest active reader.
         """
         max_amount_writable = self.compute_max_amount_writable(force_rescan=True)
-        used = self.ring_buffer_size - max_amount_writable
-        pressure = int((used / self.ring_buffer_size) * 100)
+        used = self.buffer_size - max_amount_writable
+        pressure = int((used / self.buffer_size) * 100)
         return pressure
 
     def int_to_pos(self, value: int) -> int:
@@ -178,7 +178,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         If your design does not use modulo arithmetic internally, you may still
         keep this helper as the mapping from logical positions to buffer offsets.
         """
-        return value % self.ring_buffer_size
+        return value % self.buffer_size
 
     def update_reader_pos(self, new_reader_pos: int) -> None:
         """
@@ -236,6 +236,8 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This is how a reader consumes bytes after reading them.
         """
+        if self.reader_pos_index is None:
+            raise RuntimeError("expose_reader_mem_view called on a writer-only instance")
         new_reader_pos = int(self.reader_pos + inc_amount)
         self.update_reader_pos(new_reader_pos)
 
@@ -245,7 +247,7 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         Readers can use this to resynchronize or compute how much data is available.
         """
-        return int(self.write_pos)
+        return int(self.header[self._write_pos_idx])
 
     def compute_max_amount_writable(self, force_rescan: bool = False) -> int:
         """
@@ -264,11 +266,11 @@ class SharedBuffer(shared_memory.SharedMemory):
             reader_alive = self.header[slot + 1]
 
             if reader_alive == 1:
-                min_reader_pos = min(self.reader_pos, min_reader_pos)
+                min_reader_pos = min(int(reader_pos), min_reader_pos)
 
         used = self.write_pos - min_reader_pos
 
-        max_writable = self.ring_buffer_size - used
+        max_writable = self.buffer_size - used
 
         return max_writable
 
@@ -300,13 +302,13 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         write_offset = self.int_to_pos(self.write_pos)
 
-        if write_offset + actual_size <= self.ring_buffer_size:
-            mv1 = self.ring_buffer[write_offset : write_offset + actual_size]
+        if write_offset + actual_size <= self.buffer_size:
+            mv1 = self.buffer[write_offset : write_offset + actual_size]
             mv2 = None
             split = False
         else: 
-            mv1 = self.ring_buffer[write_offset:]
-            mv2 = self.ring_buffer[0: actual_size - len(mv1)]
+            mv1 = self.buffer[write_offset:]
+            mv2 = self.buffer[0: actual_size - len(mv1)]
             split = True 
 
         return (mv1, mv2, actual_size, split)
@@ -319,9 +321,12 @@ class SharedBuffer(shared_memory.SharedMemory):
         The shape matches `expose_writer_mem_view()`. If less than `size` bytes
         are currently readable, clamp to the amount available rather than raising.
         """
+        if self.reader_pos_index is None:
+            raise RuntimeError("expose_reader_mem_view called on a writer-only instance")
+        
         max_readable = self.get_write_pos() - self.reader_pos
         
-        if max_readable > self.ring_buffer_size:
+        if max_readable > self.buffer_size:
             self.jump_to_writer()
             max_readable = 0
         
@@ -329,14 +334,14 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         read_offset = self.int_to_pos(self.reader_pos)
 
-        if read_offset + actual_size <= self.ring_buffer_size: 
-            mv1 = self.ring_buffer[read_offset: read_offset + actual_size]
+        if read_offset + actual_size <= self.buffer_size: 
+            mv1 = self.buffer[read_offset: read_offset + actual_size]
             mv2 = None 
             split = False 
 
         else: 
-            mv1 = self.ring_buffer[read_offset:]
-            mv2 = self.ring_buffer[0:actual_size - len(mv1)]
+            mv1 = self.buffer[read_offset:]
+            mv2 = self.buffer[0:actual_size - len(mv1)]
             split = True 
 
         return (mv1, mv2, actual_size, split)
@@ -357,7 +362,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         
         if mv2 is not None: 
             second_chunk = src_bytes.nbytes - first_chunk
-            mv2[:second_chunk] = src_bytes[:second_chunk]
+            mv2[:second_chunk] = src_bytes[first_chunk:first_chunk+ second_chunk]
 
     def simple_read(self, reader_mem_view: RingView, dst: object) -> None:
         """
@@ -404,13 +409,15 @@ class SharedBuffer(shared_memory.SharedMemory):
         available. If there are not enough readable bytes, return an empty array
         with the requested dtype.
         """
-        nbytes = arr.nbytes
         reader_mem_view = self.expose_reader_mem_view(nbytes)
         mv1, mv2, actual_size, split = reader_mem_view
-
         if actual_size < nbytes:
-            return 0 
-
-        self.simple_read(reader_mem_view, arr)
+            return np.empty(0, dtype=dtype)
+        if not split:
+            arr = np.frombuffer(mv1, dtype=dtype)
+        else:
+            buf = bytearray(actual_size)
+            self.simple_read(reader_mem_view, memoryview(buf))
+            arr = np.frombuffer(buf, dtype=dtype)
         self.inc_reader_pos(nbytes)
-        return nbytes
+        return arr

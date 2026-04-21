@@ -349,7 +349,15 @@ class SharedBuffer(shared_memory.SharedMemory):
         This helper should not publish data by itself; publishing happens when the
         writer position is advanced.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.simple_write")
+        mv1, mv2, size, split = writer_mem_view
+        src_bytes = memoryview(src).cast('B')
+        
+        first_chunk = min(mv1.nbytes, src_bytes.nbytes)
+        mv1[:first_chunk] = src_bytes[:first_chunk] 
+        
+        if mv2 is not None: 
+            second_chunk = src_bytes.nbytes - first_chunk
+            mv2[:second_chunk] = src_bytes[:second_chunk]
 
     def simple_read(self, reader_mem_view: RingView, dst: object) -> None:
         """
@@ -359,7 +367,15 @@ class SharedBuffer(shared_memory.SharedMemory):
         This helper should not consume data by itself; consumption happens when the
         reader position is advanced.
         """
-        raise NotImplementedError("TODO: implement SharedBuffer.simple_read")
+        mv1, mv2, size, split = reader_mem_view
+        dst_bytes = memoryview(dst).cast('B')
+        
+        first_chunk = min(mv1.nbytes, dst_bytes.nbytes)
+        dst_bytes[:first_chunk] = mv1[:first_chunk]
+
+        if mv2 is not None: 
+            second_chunk = min(mv2.nbytes, dst_bytes.nbytes - first_chunk)
+            dst_bytes[first_chunk:first_chunk+second_chunk] = mv2[:second_chunk]
 
     def write_array(self, arr: np.ndarray) -> int:
         """

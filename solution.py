@@ -119,7 +119,9 @@ class SharedBuffer(shared_memory.SharedMemory):
         self._cached_reader_active = [False] * num_readers
 
         if not create:
-            self._rescan_readers()  
+            self._rescan_readers()
+
+        self._read_buf = bytearray(size)  
 
     def close(self) -> None:
         """
@@ -196,7 +198,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         if self.reader_pos_index is None:
             raise RuntimeError("update_reader_pos called on a writer-only instance")
         
-        self.header[self.reader_pos_index] = np.uint64(new_reader_pos)
+        self.header[self.reader_pos_index] = new_reader_pos
         self.reader_pos = new_reader_pos
         self._cached_reader_positions[self.reader] = new_reader_pos
 

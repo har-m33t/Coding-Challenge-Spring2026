@@ -277,10 +277,9 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         for i in range(self.num_readers):
             if self._cached_reader_active[i]:
-                min_reader_pos = min(
-                    self._cached_reader_positions[i], 
-                    min_reader_pos
-                )
+                pos = self._cached_reader_positions[i]
+                if pos < min_reader_pos: 
+                    min_reader_pos = pos
 
         used = self.write_pos - min_reader_pos
 

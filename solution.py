@@ -267,8 +267,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         This should take active readers into account. `force_rescan=True` is used
         by the tests to ensure externally updated reader positions are observed.
         """
-        pos = self.get_write_pos()
-
+        pos = self.write_pos
         if force_rescan: 
             self._rescan_readers()
 

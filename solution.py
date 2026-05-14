@@ -114,6 +114,13 @@ class SharedBuffer(shared_memory.SharedMemory):
         self.write_pos = int(self.header[self._write_pos_idx])
         self.reader_pos = 0 if self.reader_pos_index is not None else None
 
+        # Cached Reader Information 
+        self._cached_reader_positions = [0] * num_readers
+        self._cached_reader_active = [False] * num_readers
+
+        if not create:
+            self._rescan_readers()  
+
     def close(self) -> None:
         """
         Release local views and close this process's handle to the shared memory.
@@ -188,8 +195,10 @@ class SharedBuffer(shared_memory.SharedMemory):
         """
         if self.reader_pos_index is None:
             raise RuntimeError("update_reader_pos called on a writer-only instance")
+        
         self.header[self.reader_pos_index] = np.uint64(new_reader_pos)
         self.reader_pos = new_reader_pos
+        self._cached_reader_positions[self.reader] = new_reader_pos
 
     def set_reader_active(self, active: bool) -> None:
         """
@@ -201,6 +210,8 @@ class SharedBuffer(shared_memory.SharedMemory):
         if self.reader_pos_index is None:
             raise RuntimeError("set_reader_active called on a writer-only instance")
         self.header[self.reader_pos_index + 1] = np.uint64(1 if active else 0)
+        self._cached_reader_active[self.reader] = active
+
 
     def is_reader_active(self) -> bool:
         """
@@ -258,15 +269,17 @@ class SharedBuffer(shared_memory.SharedMemory):
         """
         pos = self.get_write_pos()
 
+        if force_rescan: 
+            self._rescan_readers()
+
         min_reader_pos = pos 
 
         for i in range(self.num_readers):
-            slot =  3 + i * 3
-            reader_pos = self.header[slot]
-            reader_alive = self.header[slot + 1]
-
-            if reader_alive == 1:
-                min_reader_pos = min(int(reader_pos), min_reader_pos)
+            if self._cached_reader_active[i]:
+                min_reader_pos = min(
+                    self._cached_reader_positions[i], 
+                    min_reader_pos
+                )
 
         used = self.write_pos - min_reader_pos
 
@@ -298,6 +311,10 @@ class SharedBuffer(shared_memory.SharedMemory):
         available rather than raising.
         """
         max_writable = self.compute_max_amount_writable()
+
+        if max_writable < size: 
+            max_writable = self.compute_max_amount_writable(force_rescan=True)
+
         actual_size = min(size, max_writable)
 
         write_offset = self.int_to_pos(self.write_pos)
@@ -421,3 +438,15 @@ class SharedBuffer(shared_memory.SharedMemory):
             arr = np.frombuffer(buf, dtype=dtype)
         self.inc_reader_pos(nbytes)
         return arr
+
+    def _rescan_readers(self) -> None: 
+        """
+        Pull all reader positions and active flags from shared memory into local cache. 
+
+        When force_rescan = True, this optimization takes place
+        """
+
+        for i in range(self.num_readers):
+            slot = self._STATIC + i * self._READER_FIELDS
+            self._cached_reader_positions[i] = int(self.header[slot])
+            self._cached_reader_active[i] = bool(self.header[slot+1])

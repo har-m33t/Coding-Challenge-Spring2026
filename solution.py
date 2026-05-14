@@ -444,8 +444,13 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         When force_rescan = True, this optimization takes place
         """
+        header = self.header
+        static = self._STATIC
+        reader_fields = self._READER_FIELDS
+        positions = self._cached_reader_positions
+        active = self._cached_reader_active
 
         for i in range(self.num_readers):
-            slot = self._STATIC + i * self._READER_FIELDS
-            self._cached_reader_positions[i] = int(self.header[slot])
-            self._cached_reader_active[i] = bool(self.header[slot+1])
+            slot = static + i * reader_fields 
+            positions[i] = int(header[slot])
+            active[i] = bool(header[slot +1])

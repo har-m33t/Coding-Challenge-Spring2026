@@ -231,7 +231,7 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         The write position is what makes newly written bytes visible to readers.
         """
-        self.header[self._write_pos_idx] = np.uint64(new_writer_pos) # explicit type cast
+        self.header[self._write_pos_idx] = new_writer_pos
         self.write_pos = new_writer_pos
 
     def inc_writer_pos(self, inc_amount: int) -> None:
@@ -240,7 +240,7 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         This is how a writer publishes bytes after copying them into the buffer.
         """
-        new_writer_pos = int(self.write_pos + inc_amount)
+        new_writer_pos = self.write_pos + inc_amount
         self.update_write_pos(new_writer_pos)
 
     def inc_reader_pos(self, inc_amount: int) -> None:
@@ -251,7 +251,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         """
         if self.reader_pos_index is None:
             raise RuntimeError("expose_reader_mem_view called on a writer-only instance")
-        new_reader_pos = int(self.reader_pos + inc_amount)
+        new_reader_pos = self.reader_pos + inc_amount
         self.update_reader_pos(new_reader_pos)
 
     def get_write_pos(self) -> int:

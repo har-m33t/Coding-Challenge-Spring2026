@@ -1,0 +1,13 @@
+Shared Buffer Throughput Benchmark
+buffer_size_bytes: 1048576
+chunk_size_bytes: 65536
+seconds: 2.00
+iterations: 363302
+bytes_transferred: 23809359872
+throughput_mib_per_s: 11353.19
+
+
+== Official Tests ==
+Official Tests: 44/44 passed (0 failures, 0 errors, 0 skipped)
+
+Current official score: 44/44

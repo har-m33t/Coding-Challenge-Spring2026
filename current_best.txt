@@ -2,9 +2,9 @@ Shared Buffer Throughput Benchmark
 buffer_size_bytes: 1048576
 chunk_size_bytes: 65536
 seconds: 2.00
-iterations: 363302
-bytes_transferred: 23809359872
-throughput_mib_per_s: 11353.19
+iterations: 378313
+bytes_transferred: 24793120768
+throughput_mib_per_s: 11822.28
 
 
 == Official Tests ==

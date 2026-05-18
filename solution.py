@@ -75,6 +75,10 @@ class SharedBuffer(shared_memory.SharedMemory):
 
         self.header_size = raw_header_bytes
         self.buffer_size = size
+
+        self._buffer_size_is_pow2 = (size > 0) and ((size & (size - 1)) == 0)
+        self._buffer_size_mask = size - 1
+
         total_size = self.header_size + self.buffer_size
 
         super().__init__(name=name, create=create, size=total_size)
@@ -189,6 +193,8 @@ class SharedBuffer(shared_memory.SharedMemory):
         If your design does not use modulo arithmetic internally, you may still
         keep this helper as the mapping from logical positions to buffer offsets.
         """
+        if self._buffer_size_is_pow2: 
+            return value & self._buffer_size_mask
         return value % self.buffer_size
 
     def update_reader_pos(self, new_reader_pos: int) -> None:

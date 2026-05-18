@@ -97,7 +97,7 @@ class SharedBuffer(shared_memory.SharedMemory):
         self.num_readers = num_readers
         self.reader = reader
 
-        self.buffer = memoryview(self.buf)[self.header_size : self.header_size + self.buffer_size]
+        self.buffer = self.buf[self.header_size : self.header_size + self.buffer_size]
 
         self._size_idx = 0
         self._write_pos_idx = 1

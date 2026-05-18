@@ -269,24 +269,13 @@ class SharedBuffer(shared_memory.SharedMemory):
         This should take active readers into account. `force_rescan=True` is used
         by the tests to ensure externally updated reader positions are observed.
         """
-        pos = self.write_pos
-        if force_rescan: 
+        if force_rescan:
             self._rescan_readers()
-
-        min_reader_pos = pos 
-
-        for i in range(self.num_readers):
-            if self._cached_reader_active[i]:
-                pos = self._cached_reader_positions[i]
-                if pos < min_reader_pos: 
-                    min_reader_pos = pos
-
-        used = self.write_pos - min_reader_pos
-
-        max_writable = self.buffer_size - used
-
-        return max_writable
-
+        slowest = self._cached_slowest_pos
+        if slowest is None:
+            return self.buffer_size
+        used = self.write_pos - slowest
+        return self.buffer_size - used
 
     def jump_to_writer(self) -> None:
         """
@@ -450,8 +439,16 @@ class SharedBuffer(shared_memory.SharedMemory):
         reader_fields = self._READER_FIELDS
         positions = self._cached_reader_positions
         active = self._cached_reader_active
+        slowest = None
 
         for i in range(self.num_readers):
-            slot = static + i * reader_fields 
-            positions[i] = int(header[slot])
-            active[i] = bool(header[slot +1])
+            slot = static + i * reader_fields
+            pos = int(header[slot])
+            is_active = bool(header[slot + 1])
+            positions[i] = pos
+            active[i] = is_active
+            if is_active:
+                if slowest is None or pos < slowest:
+                    slowest = pos
+        self._cached_slowest_pos = slowest
+
